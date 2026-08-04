@@ -1,6 +1,6 @@
-chdir("/SCRIPTS/TOOLS/LEDVTX")
+chdir("/SCRIPTS/TOOLS/LEDVTXRACE")
 
-local toolName = "TNS|LED & VTX setup|TNE"
+local toolName = "TNS|LED & VTX Race|TNE"
 
 local gui = assert(loadScript("gui.lua"))()
 local config = assert(loadScript("config.lua"))()
