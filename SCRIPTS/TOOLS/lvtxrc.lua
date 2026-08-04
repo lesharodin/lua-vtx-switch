@@ -192,6 +192,22 @@ local function setAuxLedColor(color)
 end
 
 
+local function restoreAuxLedColor()
+  if not model.getGlobalVariable then
+    return false
+  end
+  local gvIndex = menu[ITEM_GV].values[menu[ITEM_GV].pos]
+  local gvValue = model.getGlobalVariable(gvIndex, 0)
+  for i = 1, #colorIds do
+    if colorGvValues[colorIds[i]] == gvValue then
+      menu[ITEM_LED].pos = i
+      return true
+    end
+  end
+  return false
+end
+
+
 local function previewAuxLedColor()
   if menuPosition == ITEM_LED then
     setAuxLedColor(menu[ITEM_LED].values[menu[ITEM_LED].pos])
@@ -427,6 +443,7 @@ end
 
 local function init_func()
   config.load_(menu)
+  restoreAuxLedColor()
   fillChannelList()
 end
 
