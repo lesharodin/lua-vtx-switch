@@ -1,9 +1,9 @@
 local configPath = "config.txt"
 
 
-local function checkLimits(value, maxValue)
+local function checkLimits(value, maxValue, defaultValue)
   if not value then
-    return 1
+    return defaultValue or 1
   elseif value > maxValue then
     return maxValue
   elseif value < 1 then
@@ -34,13 +34,13 @@ local function loadConfig(menu)
       if menu[i] then
         val = tonumber(io.read(f, 2))
         io.read(f, 1)
-        menu[i].pos = checkLimits(val, #menu[i].labels)
+        menu[i].pos = checkLimits(val, #menu[i].labels, menu[i].pos)
       end
     end
   else
     for i = 1, menuLength do
       if menu[i] then
-        menu[i].pos = 1
+        menu[i].pos = menu[i].pos or 1
       end
     end
   end

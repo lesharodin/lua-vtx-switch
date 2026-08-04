@@ -12,11 +12,9 @@ local ITEM_VTX = 3
 local ITEM_SAVE = 4
 
 local ITEM_POWER = 5
-local ITEM_COUNT = 6
-local ITEM_LARSON = 7
-local ITEM_VERSION = 8
-local ITEM_VTX_MODE = 9
-local ITEM_BANDS = 10
+local ITEM_VTX_MODE = 6
+local ITEM_BANDS = 7
+local ITEM_GV = 8
 
 local IDLE=1
 local BUSY=2
@@ -29,25 +27,37 @@ local VTX_MODE_ELRS = 2
 local BANDS_ANALOG = 1
 local BANDS_HDZERO = 2
 
-local maxLedCount = 32
-
-local colorLabels = { "Red", "Orange", "Yellow", "Green", "Cyan", "Blue", "Violet", "Magenta", "White", "Black", "   * * * *" }
-local colorIds = { 2, 3, 4, 6, 8, 10, 11, 12, 1, 0, nil }
+local colorLabels = { "Red", "Orange", "Yellow", "Green", "Cyan", "Blue", "Violet", "Magenta" }
+local colorIds = { 2, 3, 4, 6, 8, 10, 11, 12 }
 
 local bandNames = { "Band A", "Band B", "Band E", "Fatshark", "Raceband", "Lowband"}
 local bandIds = { 1, 2, 3, 4, 5, 6 }
-
-local switchLabels = {"OFF", "ON"}
-local switchIds = {0, 1}
-
-local versionLabels = {"4.5+", "4.4-"}
-local versionIds = {0, 1}
 
 local vtxModeLabels = {"MSP", "ELRS"}
 local vtxModeIds = {VTX_MODE_MSP, VTX_MODE_ELRS}
 
 local bandsLabels = {"Analog", "HDZero"}
 local bandsIds = {BANDS_ANALOG, BANDS_HDZERO}
+
+local gvLabels = {}
+local gvIds = {}
+for i = 1, 9 do
+  gvLabels[#gvLabels+1] = "GV" .. tostring(i)
+  gvIds[#gvIds+1] = i - 1
+end
+
+-- GV values for the Betaflight CT palette documented in README.md:
+-- color 0 = H0, color 1 = H178, color 2 = H359.
+local colorGvValues = {
+  [2] = -1024, -- Red, H0
+  [3] = -966,  -- Orange, H10
+  [4] = -851,  -- Yellow, H30
+  [6] = -334,  -- Green, H120
+  [8] = 11,    -- Cyan, H180
+  [10] = 350,  -- Blue, H240
+  [11] = 605,  -- Violet, H285
+  [12] = 973   -- Magenta, H350
+}
 
 local powerLabels = {}
 local powerIds = {}
@@ -56,13 +66,6 @@ powerIds[#powerIds+1] = 0
 for i = 1, 8 do
   powerLabels[#powerLabels+1] = tostring(i)
   powerIds[#powerIds+1] = i
-end
-
-local countLabels = {}
-local countIds = {}
-for i = 1, maxLedCount do
-  countLabels[#countLabels+1] = tostring(i)
-  countIds[#countIds+1] = i
 end
 
 local analogChannels = {}
@@ -96,11 +99,9 @@ menu = {}
 menu[ITEM_LED] = {labels = colorLabels, values = colorIds, pos = 1}
 menu[ITEM_VTX] = {labels = channelLabels, values = channelIds, pos = 1}
 menu[ITEM_POWER] = {labels = powerLabels, values = powerIds, pos = 1}
-menu[ITEM_COUNT] = {labels = countLabels, values = countIds, pos = 1}
-menu[ITEM_LARSON] = {labels = switchLabels, values = switchIds, pos = 1}
-menu[ITEM_VERSION] = {labels = versionLabels, values = versionIds, pos = 1}
 menu[ITEM_VTX_MODE] = {labels = vtxModeLabels, values = vtxModeIds, pos = 1}
 menu[ITEM_BANDS] = {labels = bandsLabels, values = bandsIds, pos = 1}
+menu[ITEM_GV] = {labels = gvLabels, values = gvIds, pos = 9}
 
 
 local menuPosition = ITEM_LED
@@ -180,11 +181,30 @@ end
 fillChannelList()
 
 
+local function setAuxLedColor(color)
+  local gvValue = colorGvValues[color]
+  if not gvValue then
+    return false
+  end
+  local gvIndex = menu[ITEM_GV].values[menu[ITEM_GV].pos]
+  model.setGlobalVariable(gvIndex, 0, gvValue)
+  return true
+end
+
+
+local function previewAuxLedColor()
+  if menuPosition == ITEM_LED then
+    setAuxLedColor(menu[ITEM_LED].values[menu[ITEM_LED].pos])
+  end
+end
+
+
 local function itemIncrease()
 
   if menu[menuPosition] then
     if menu[menuPosition].pos < #menu[menuPosition].labels then
       menu[menuPosition].pos = menu[menuPosition].pos + 1
+      previewAuxLedColor()
     end
   end
 end
@@ -194,13 +214,14 @@ local function itemDecrease()
   if menu[menuPosition] then
     if menu[menuPosition].pos > 1 then
       menu[menuPosition].pos = menu[menuPosition].pos - 1
+      previewAuxLedColor()
     end
   end
 end
 
 
 local function menuMoveDown()
-  if menuPosition ~= ITEM_SAVE and menuPosition ~= ITEM_BANDS then
+  if menuPosition ~= ITEM_SAVE and menuPosition ~= ITEM_GV then
     menuPosition = menuPosition + 1
   end
 end
@@ -232,8 +253,8 @@ local function drawDisplay()
     local firstOption = menuPosition - 3
     if firstOption < ITEM_POWER then
       firstOption = ITEM_POWER
-    elseif firstOption > ITEM_BANDS - 3 then
-      firstOption = ITEM_BANDS - 3
+    elseif firstOption > ITEM_GV - 3 then
+      firstOption = ITEM_GV - 3
     end
     for row = 1, 4 do
       local item = firstOption + row - 1
@@ -241,17 +262,12 @@ local function drawDisplay()
       local offset = nil
       if item == ITEM_POWER then
         label = "Power Level"
-      elseif item == ITEM_COUNT then
-        label = "LED Count"
-      elseif item == ITEM_LARSON then
-        label = "Larson Scanner"
-      elseif item == ITEM_VERSION then
-        label = "BF Version"
-        offset = -4
       elseif item == ITEM_VTX_MODE then
         label = "VTX Mode"
       elseif item == ITEM_BANDS then
         label = "Bands"
+      elseif item == ITEM_GV then
+        label = "LED GV"
       end
       gui.drawSmallSelector(row, label, menu[item].labels[menu[item].pos], menuPosition==item, isItemActive, offset)
     end
@@ -316,7 +332,7 @@ local function sendElrsVtxConfig()
   end
   state = BUSY
   config.save(menu)
-  com.sendLedVtxConfig(args)
+  com.sendVtxConfig(args)
 end
 
 
@@ -333,6 +349,9 @@ local function processEnterPress()
       local current = menu[ITEM_VTX].values[menu[ITEM_VTX].pos]
       fillChannelList(current[1], current[2])
     end
+    if wasActive and menuPosition == ITEM_GV then
+      setAuxLedColor(menu[ITEM_LED].values[menu[ITEM_LED].pos])
+    end
     if wasActive and (menuPosition == ITEM_VTX or menuPosition == ITEM_POWER) then
       sendElrsVtxConfig()
     end
@@ -342,11 +361,8 @@ local function processEnterPress()
     config.save(menu)
 
     local args = prepareVtxArgs()
-    args.color = menu[ITEM_LED].values[menu[ITEM_LED].pos]
-    args.count = menu[ITEM_COUNT].values[menu[ITEM_COUNT].pos]
-    args.larson = menu[ITEM_LARSON].values[menu[ITEM_LARSON].pos]
-    args.version = menu[ITEM_VERSION].values[menu[ITEM_VERSION].pos]
-    com.sendLedVtxConfig(args)  -- TODO: transfer all parameters
+    setAuxLedColor(menu[ITEM_LED].values[menu[ITEM_LED].pos])
+    com.sendVtxConfig(args)
   end
 end
 
