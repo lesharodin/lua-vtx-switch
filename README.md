@@ -2,9 +2,9 @@
 
 Скрипт для переключения каналов видеопередатчика и цвета светодиодов с экрана аппаратуры.
 
-<img src="SCREENSHOTS/src_sd_1.png" width="100%" alt="LED & VTX Race main screen" />
+<img src="SCREENSHOTS/src_sd_1.png" width="40%" alt="LED & VTX Race main screen" />
 
-<img src="SCREENSHOTS/src_sd_2.png" width="100%" alt="LED & VTX Race options" />
+<img src="SCREENSHOTS/src_sd_2.png" width="40%" alt="LED & VTX Race options" />
 
 ### Установка скрипта в EdgeTX
 
