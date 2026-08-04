@@ -2,7 +2,7 @@
 
 Скрипт для переключения каналов видеопередатчика и цвета светодиодов с экрана аппаратуры.
 
-<img src="SCREENSHOTS/scr_sd_1.bmp" height="128" /> <img src="SCREENSHOTS/scr_sd_2.bmp" height="128" /> <br>
+<img src="SCREENSHOTS/src_sd_1.png" height="128" /> <img src="SCREENSHOTS/src_sd_2.png" height="128" /> <br>
 
 
 ### Установка скрипта в EdgeTX
