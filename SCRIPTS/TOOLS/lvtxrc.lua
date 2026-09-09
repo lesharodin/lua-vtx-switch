@@ -5,6 +5,7 @@ local toolName = "TNS|LED & VTX Race|TNE"
 local gui = assert(loadScript("gui.lua"))()
 local config = assert(loadScript("config.lua"))()
 local com = assert(loadScript("com.lua"))()
+local tuner = assert(loadScript("tuner.lua"))()
 
 local ITEM_OPTS = 1
 local ITEM_LED = 2
@@ -15,6 +16,7 @@ local ITEM_POWER = 5
 local ITEM_VTX_MODE = 6
 local ITEM_BANDS = 7
 local ITEM_GV = 8
+local ITEM_TUNER = 9
 
 local IDLE=1
 local BUSY=2
@@ -107,6 +109,7 @@ menu[ITEM_GV] = {labels = gvLabels, values = gvIds, pos = 9}
 local menuPosition = ITEM_LED
 local isItemActive = false
 local isOptionsMenuActive = false
+local isTunerActive = false
 local state = IDLE
 local vtxConfigVersion = nil
 local statusText = nil
@@ -181,13 +184,18 @@ end
 fillChannelList()
 
 
+local function setAuxLedValue(gvValue)
+  local gvIndex = menu[ITEM_GV].values[menu[ITEM_GV].pos]
+  model.setGlobalVariable(gvIndex, 0, gvValue)
+end
+
+
 local function setAuxLedColor(color)
-  local gvValue = colorGvValues[color]
+  local gvValue = tuner.getValue(color)
   if not gvValue then
     return false
   end
-  local gvIndex = menu[ITEM_GV].values[menu[ITEM_GV].pos]
-  model.setGlobalVariable(gvIndex, 0, gvValue)
+  setAuxLedValue(gvValue)
   return true
 end
 
@@ -199,7 +207,7 @@ local function restoreAuxLedColor()
   local gvIndex = menu[ITEM_GV].values[menu[ITEM_GV].pos]
   local gvValue = model.getGlobalVariable(gvIndex, 0)
   for i = 1, #colorIds do
-    if colorGvValues[colorIds[i]] == gvValue then
+    if tuner.getValue(colorIds[i]) == gvValue then
       menu[ITEM_LED].pos = i
       return true
     end
@@ -215,12 +223,27 @@ local function previewAuxLedColor()
 end
 
 
+local function saveOptionChange()
+  if not isOptionsMenuActive or menuPosition > ITEM_GV then
+    return
+  end
+  if menuPosition == ITEM_BANDS then
+    local current = menu[ITEM_VTX].values[menu[ITEM_VTX].pos]
+    fillChannelList(current[1], current[2])
+  elseif menuPosition == ITEM_GV then
+    setAuxLedColor(menu[ITEM_LED].values[menu[ITEM_LED].pos])
+  end
+  config.save(menu)
+end
+
+
 local function itemIncrease()
 
   if menu[menuPosition] then
     if menu[menuPosition].pos < #menu[menuPosition].labels then
       menu[menuPosition].pos = menu[menuPosition].pos + 1
       previewAuxLedColor()
+      saveOptionChange()
     end
   end
 end
@@ -231,13 +254,14 @@ local function itemDecrease()
     if menu[menuPosition].pos > 1 then
       menu[menuPosition].pos = menu[menuPosition].pos - 1
       previewAuxLedColor()
+      saveOptionChange()
     end
   end
 end
 
 
 local function menuMoveDown()
-  if menuPosition ~= ITEM_SAVE and menuPosition ~= ITEM_GV then
+  if menuPosition ~= ITEM_SAVE and menuPosition ~= ITEM_TUNER then
     menuPosition = menuPosition + 1
   end
 end
@@ -264,13 +288,17 @@ end
 
 
 local function drawDisplay()
+  if isTunerActive then
+    tuner.run(0, setAuxLedValue)
+    return
+  end
   lcd.clear()
   if isOptionsMenuActive then
     local firstOption = menuPosition - 3
     if firstOption < ITEM_POWER then
       firstOption = ITEM_POWER
-    elseif firstOption > ITEM_GV - 3 then
-      firstOption = ITEM_GV - 3
+    elseif firstOption > ITEM_TUNER - 3 then
+      firstOption = ITEM_TUNER - 3
     end
     for row = 1, 4 do
       local item = firstOption + row - 1
@@ -285,7 +313,11 @@ local function drawDisplay()
       elseif item == ITEM_GV then
         label = "LED GV"
       end
-      gui.drawSmallSelector(row, label, menu[item].labels[menu[item].pos], menuPosition==item, isItemActive, offset)
+      if item == ITEM_TUNER then
+        gui.drawSmallSelector(row, "Color tuner", ">", menuPosition==item, false)
+      else
+        gui.drawSmallSelector(row, label, menu[item].labels[menu[item].pos], menuPosition==item, isItemActive, offset)
+      end
     end
   else
     
@@ -353,6 +385,12 @@ end
 
 
 local function processEnterPress()
+  if menuPosition == ITEM_TUNER then
+    tuner.open(menu[ITEM_LED].pos)
+    setAuxLedColor(menu[ITEM_LED].values[menu[ITEM_LED].pos])
+    isTunerActive = true
+    return
+  end
   if menuPosition == ITEM_OPTS then
     menuPosition = ITEM_SAVE + 1
     isOptionsMenuActive = true
@@ -361,13 +399,6 @@ local function processEnterPress()
   if menuPosition ~= ITEM_SAVE and menuPosition ~= ITEM_OPTS then
     local wasActive = isItemActive
     isItemActive = not isItemActive
-    if wasActive and menuPosition == ITEM_BANDS then
-      local current = menu[ITEM_VTX].values[menu[ITEM_VTX].pos]
-      fillChannelList(current[1], current[2])
-    end
-    if wasActive and menuPosition == ITEM_GV then
-      setAuxLedColor(menu[ITEM_LED].values[menu[ITEM_LED].pos])
-    end
     if wasActive and (menuPosition == ITEM_VTX or menuPosition == ITEM_POWER) then
       sendElrsVtxConfig()
     end
@@ -383,9 +414,17 @@ local function processEnterPress()
 end
 
 
-local function run_func(event)
+local function run_func(event, telemetryScreen)
   com.mainLoop(getVtxMode())
   refreshStatus()
+  if isTunerActive then
+    if tuner.run(event, setAuxLedValue) then
+      isTunerActive = false
+      setAuxLedColor(menu[ITEM_LED].values[menu[ITEM_LED].pos])
+      drawDisplay()
+    end
+    return 0
+  end
   if getVtxMode() == VTX_MODE_ELRS then
     applyVtxConfig(com.getVtxConfig())
   end
@@ -413,7 +452,7 @@ local function run_func(event)
         if isOptionsMenuActive then
           isOptionsMenuActive = false
           menuPosition = ITEM_LED
-        else
+        elseif not telemetryScreen then
           return -1
         end
       end
@@ -443,6 +482,7 @@ end
 
 local function init_func()
   config.load_(menu)
+  tuner.init(colorGvValues, colorIds, colorLabels)
   restoreAuxLedColor()
   fillChannelList()
 end

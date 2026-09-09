@@ -1,4 +1,4 @@
-local configPath = "config.txt"
+local configPath = "/SCRIPTS/TOOLS/LEDVTXRACE/config.txt"
 
 
 local function checkLimits(value, maxValue, defaultValue)
